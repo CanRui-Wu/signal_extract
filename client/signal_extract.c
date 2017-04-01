@@ -11,7 +11,7 @@
 
 struct sockaddr_in server_addr;
 int ap_index;  //Tell server which AP you are
-
+int socket_fd; //The socket of client
 
 static const struct radiotap_align_size align_size_000000_00[] = {
 	[0] = { .align = 1, .size = 4, },
@@ -70,17 +70,9 @@ void packet_handler(u_char *user,const struct pcap_pkthdr * pkthdr,const u_char 
 			break;
 	}
 	int radiotap_len = packet[2];
-	printf("test %d\n", radiotap_len);
 	if(packet[radiotap_len] != 0x40) { //Ignore the frame which is not probe request
 		return;
 	}
-	int socket_fd = tcp_client_init();
-	if(socket_fd == -1) {
-		printf("Unable to connect TCP Server\n");
-		exit(1);
-	}
-	
-	
 	printf("success to capture a probe request\n");
 	printf("Whole packet length :%u\n",pkthdr->len);
 	printf("Actually capture number of bytes:%u\n",pkthdr->caplen);
@@ -90,11 +82,10 @@ void packet_handler(u_char *user,const struct pcap_pkthdr * pkthdr,const u_char 
 	int address_index = radiotap_len + 10;
 	int i;
 	for(i = 0;i < 6;i++) {
-		buf[i] = packet[address_index+i];
+		buf[i] = htonl(packet[address_index+i]);
 	}
-	buf[6] = ssi_signal;
-	buf[7] = ap_index;
-	printf("%d",ap_index);
+	buf[6] = htonl(ssi_signal);
+	buf[7] = htonl(ap_index);
 	write(socket_fd,buf,8*sizeof(int));
 }
 
@@ -125,6 +116,11 @@ int main(int argc,char *argv[]) {
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_addr.s_addr = inet_addr(server_ip);
 	server_addr.sin_port = htons(atoi(server_port));
+	socket_fd = tcp_client_init();
+	if(socket_fd == -1) {
+		printf("Fail to create socket");
+		exit(1);
+	}
 	pcap_loop(fd,-1,packet_handler,NULL);
 	pcap_close(fd);
 	return 0;

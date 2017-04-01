@@ -11,9 +11,9 @@
  * Alternatively, this software may be distributed under the terms of ISC
  * license, see COPYING for more details.
  */
-#include "radiotap_iter.h"
+#include "radiotap/radiotap_iter.h"
 #include <stdio.h>
-#include "platform.h"
+#include "radiotap/platform.h"
 
 /* function prototypes and related defs are in radiotap_iter.h */
 

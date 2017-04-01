@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -10,12 +11,15 @@
 #define SERVER_PORT 8000
 #define MAX_CONN 10
 
-void handle_client_conn(int *conn_fd) {
+void *handle_client_conn(void *arg) {
 	int buf[MAX]; //定义缓冲区
+	int *p_conn_fd = (int *)arg;
+	int conn_fd = *p_conn_fd;
 	while(1) {
-		int n = read(*conn_fd,buf,MAX); //从已连接套接字中读取数据到buf中
+		int n = read(conn_fd,buf,MAX); //从已连接套接字中读取数据到buf中
 		if (n == 0) {
-			close(*conn_fd);
+			printf("Close the connection\n");
+			close(conn_fd);
 			pthread_exit(NULL);
 		}
 		int i;
@@ -27,6 +31,8 @@ void handle_client_conn(int *conn_fd) {
 		}
 		printf(",its signal is %d dBM\n",ntohl(buf[6]));
 	}
+	close(conn_fd);
+	return NULL;
 }
 
 int main() {
@@ -39,12 +45,23 @@ int main() {
 	bind(listen_fd,(struct sockaddr*)&server_addr,sizeof(server_addr)); //将地址和端口绑到监听描述符上，要先将sockaddr_in转为sockaddr
 	listen(listen_fd,20); //将套接口从CLOSED状态转为LISTEN状态，后面的20表示最大同时连接的客户端
 	printf("等待客户端连接中...\n");
+	pthread_t id[MAX_CONN];
 	int conn_id = 0;
 	while(1) {
-		conn_id++;
-		int client_addr_len = sizeof(client_addr);
+		socklen_t client_addr_len = (socklen_t)sizeof(client_addr);
+
 		//accept函数返回新的连接描述字，client_addr被置为客户端套接字，后面的是套接字长度
 		int conn_fd = accept(listen_fd,(struct sockaddr*)&client_addr,&client_addr_len); 
-		int result = pthread_create(&conn_id,NULL,(void *)handle_client_conn,&conn_fd);
+		
+		//注意conn_fd前的void＊不能去掉，如果采用地址传递，线程执行时，conn_fd在while循环生命周期已经结束了
+		int result = pthread_create(id+conn_id,NULL,(void *)handle_client_conn,(void *)(&conn_fd)); 
+		if(result != 0) {
+			printf("Unable to create thread,Error Code:%d",result);
+			exit(1);
+		}
+		pthread_detach(*(id+conn_id));
+		conn_id++;
 	}
+	close(listen_fd);
+	return 0;
 }
